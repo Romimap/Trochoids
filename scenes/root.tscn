@@ -1,210 +1,58 @@
-[gd_scene load_steps=6 format=3 uid="uid://bwshjyle5cfut"]
+[gd_scene load_steps=9 format=3 uid="uid://bwshjyle5cfut"]
 
-[sub_resource type="Shader" id="Shader_vx8sv"]
-code = "shader_type spatial;
+[ext_resource type="Shader" path="res://Shaders/Trochoids.gdshader" id="1_dqvnw"]
+[ext_resource type="Script" path="res://scenes/Particles.gd" id="1_lwe7n"]
+[ext_resource type="Shader" path="res://Shaders/ComputedTroch.gdshader" id="2_x062e"]
+[ext_resource type="Shader" path="res://Shaders/ModifiedSin.gdshader" id="3_08fap"]
 
-uniform float height : hint_range(-2.0, 0.0, 0.001) = -0.05;
-uniform float wavelength : hint_range(0.1, 5.0, 0.001) = 1.0;
-uniform float wavefrequency : hint_range(0.1, 5.0, 0.001) = 0.1;
-uniform float direction : hint_range(0.0, 6.2831, 0.001) = 0.0;
-uniform float pointsampling : hint_range(0.1, 2.0, 0.01) = 0.5;
-uniform bool moveXZ = true;
-
-// Return offset of trochoid centered on abc
-vec2 trochoidoffset(vec3 abc, float time, float theta, float lambda, float frequency)
-{
-	vec2 d = vec2(cos(theta), sin(theta));
-	
-	float k = 2.0 * PI / lambda;
-	float omega = 2.0 * PI * frequency;
-	
-	float x = dot(abc.xz,d);
-	float b = abc.y;
-	
-	return vec2(
-		(exp(k * b) / k) * sin(k * x - omega * time),
-		- (exp(k * b) / k) * cos(k * x - omega * time)
-	);
-}
-
-// Return coordinates of trochoid centered on abc
-vec2 trochoid(vec3 abc, float time, float theta, float lambda, float frequency)
-{
-	vec2 trocho = trochoidoffset(abc, time, theta, lambda, frequency);
-	
-	return trocho + vec2(abc.x * cos(theta) + abc.z * sin(theta), abc.y);
-}
-
-float interp(vec2 a, vec2 b, float x)
-{
-	return (a.x - x) / (a.x - b.x) * (b.y - a.y) + a.y;
-}
-
-//see https://en.wikipedia.org/wiki/Trochoidal_wave
-//abc are the lagrangian coordinates (xyz0)
-//time the time
-//theta the direction
-//lambda the wavelength
-//returns an offset.
-vec3 addWave(vec3 abc, float time, float theta, float lambda) {
-	vec2 d = vec2(cos(theta), sin(theta));
-	float a = dot(d, abc.xz);
-	float b = abc.y;
-	float k = 2.0 * PI / lambda;
-	float c = sqrt(9.8 / k);
-
-	return vec3(
-		d.x * (exp(k * b) / k) * sin(k * (a + c * time)),
-		-1. * (exp(k * b) / k) * cos(k * (a + c * time)),
-		d.y * (exp(k * b) / k) * sin(k * (a + c * time))
-	);
-}
-
-//see https://en.wikipedia.org/wiki/Trochoidal_wave
-//abc are the lagrangian coordinates (xyz0)
-//time the time
-//theta the direction
-//lambda the wavelength
-//returns an offset.
-vec3 addWaveNewMethod(vec3 abc, float time, float theta, float lambda, float frequency) {
-	
-	vec2 trocho =  trochoidoffset(abc, time, theta, lambda, frequency);
-	
-	return vec3(
-		cos(theta) * trocho.x,
-		trocho.y,
-		sin(theta) * trocho.x
-	);
-}
-
-// Return the height of a wave at given coordinates
-float waveHeight(vec3 abc, float time, float theta, float lambda, float frequency) {
-	vec2 d = vec2(cos(theta), sin(theta));
-	float a = dot(d, abc.xz);
-	float b = abc.y;
-	float k = 2.0 * PI / lambda;
-	float c = sqrt(9.8 / k);
-
-	return trochoid(abc, time, theta, lambda, frequency).y;
-}
-
-// Return the wave height by interpolating between two point on a trochoidal trajectory
-float waveHeightInterpolation(vec3 abc, float time, float theta, float lambda, float frequency) {
-	vec2 d = vec2(cos(theta), sin(theta));
-	
-	float b = abc.y;
-	float k = 2.0 * PI / lambda;
-	
-	vec3 offset =  pointsampling * vec3(d.x,0.0,d.y);
-
-	vec2 interp1 = trochoid(abc - offset, time, theta, lambda, frequency);
-	vec2 interp2 = trochoid(abc + offset, time, theta, lambda, frequency);
-	
-	return interp(interp2, interp1, dot(d,abc.xz));
-}
-
-void vertex () {
-	vec3 v = VERTEX;
-	v.y = height;
-	if(!moveXZ)
-		v.y += waveHeightInterpolation(v, TIME, direction, wavelength, wavefrequency);
-	else
-		v += addWaveNewMethod(v, TIME, direction, wavelength, wavefrequency);
-	VERTEX = v;
-}
-
-//Draw a grid on the surface
-void fragment() {
-	vec2 uv = UV * 32.0;
-	uv = mod(uv, vec2(2.0)) - vec2(1.0);
-	if (sign(uv.x) == sign(uv.y)) ALBEDO = vec3(1.0);
-	else ALBEDO = vec3(0.8);
-	
-	uv = UV * 8.0;
-	uv = mod(uv, vec2(2.0)) - vec2(1.0);
-	if (sign(uv.x) == sign(uv.y)) ALBEDO *= vec3(0.5);
-	
-	uv = UV * 2.0;
-	uv = mod(uv, vec2(2.0)) - vec2(1.0);
-	if (sign(uv.x) == sign(uv.y)) ALBEDO *= vec3(0.2);
-}
-"
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_di48i"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_i742i"]
 render_priority = 0
-shader = SubResource("Shader_vx8sv")
-shader_parameter/height = -0.217
-shader_parameter/wavelength = 2.7
-shader_parameter/wavefrequency = 0.968
-shader_parameter/direction = 3.9
-shader_parameter/pointsampling = 0.1
-shader_parameter/moveXZ = false
+shader = ExtResource("1_dqvnw")
+shader_parameter/height = -0.3
+shader_parameter/wavelength = 2.735
+shader_parameter/wavefrequency = 1.126
+shader_parameter/direction = 0.654
+shader_parameter/pointsampling = 0.28
+shader_parameter/useinterpolation = true
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_c4o2n"]
 size = Vector2(10, 10)
 subdivide_width = 512
 subdivide_depth = 512
 
-[sub_resource type="Shader" id="Shader_01wr7"]
-code = "shader_type spatial;
-
-uniform float height : hint_range(-2.0, 0.0, 0.001) = -0.05;
-uniform float wavelength : hint_range(0.1, 5.0, 0.001) = 1.0;
-uniform float direction : hint_range(0.0, 6.2831, 0.001) = 0.0;
-
-//See https://www.geogebra.org/calculator/ctyaxuma
-vec3 addWave(vec3 v, float time, float theta, float lambda, float steepness) {
-	vec2 d = vec2(cos(theta), sin(theta));
-	float a = dot(d, v.xz);
-	float b = v.y;
-
-	float k = 2.0 * PI / lambda;
-	float c = sqrt(9.8 / k);
-
-	return vec3(
-		0,
-		(exp(k * b) / k) * (pow(cos(k * (a + c * time)) * 0.5 + 0.5, steepness) * 2.0 - 1.0), 
-		0
-	);
-}
-
-void vertex () {
-	vec3 v = VERTEX;
-	v.y = height;
-	v += addWave(v, TIME, direction, wavelength, 2.0);
-	VERTEX = v;
-}
-
-//Draw a grid on the surface
-void fragment() {
-	vec2 uv = UV * 32.0;
-	uv = mod(uv, vec2(2.0)) - vec2(1.0);
-	if (sign(uv.x) == sign(uv.y)) ALBEDO = vec3(1.0);
-	else ALBEDO = vec3(0.8);
-	
-	uv = UV * 8.0;
-	uv = mod(uv, vec2(2.0)) - vec2(1.0);
-	if (sign(uv.x) == sign(uv.y)) ALBEDO *= vec3(0.5);
-	
-	uv = UV * 2.0;
-	uv = mod(uv, vec2(2.0)) - vec2(1.0);
-	if (sign(uv.x) == sign(uv.y)) ALBEDO *= vec3(0.2);
-}"
-
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_klpso"]
 render_priority = 0
-shader = SubResource("Shader_01wr7")
+shader = ExtResource("3_08fap")
 shader_parameter/height = -0.3
 shader_parameter/wavelength = 2.7
 shader_parameter/direction = 3.9
 
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_di48i"]
+render_priority = 0
+shader = ExtResource("2_x062e")
+shader_parameter/height = -0.217
+shader_parameter/wavelength = 2.7
+shader_parameter/wavefrequency = 0.968
+shader_parameter/direction = 0.562
+shader_parameter/pointsampling = 1.03
+shader_parameter/moveXZ = false
+shader_parameter/lookuptable = [Vector2(0, -1), Vector2(0.0245412, -0.999699), Vector2(0.0490677, -0.998795), Vector2(0.0735646, -0.99729), Vector2(0.0980171, -0.995185), Vector2(0.122411, -0.99248), Vector2(0.14673, -0.989177), Vector2(0.170962, -0.985278), Vector2(0.19509, -0.980785), Vector2(0.219101, -0.975702), Vector2(0.24298, -0.970031), Vector2(0.266713, -0.963776), Vector2(0.290285, -0.95694), Vector2(0.313682, -0.949528), Vector2(0.33689, -0.941544), Vector2(0.359895, -0.932993), Vector2(0.382683, -0.92388), Vector2(0.405241, -0.91421), Vector2(0.427555, -0.903989), Vector2(0.449611, -0.893224), Vector2(0.471397, -0.881921), Vector2(0.492898, -0.870087), Vector2(0.514103, -0.857729), Vector2(0.534998, -0.844854), Vector2(0.55557, -0.83147), Vector2(0.575808, -0.817585), Vector2(0.595699, -0.803208), Vector2(0.615232, -0.788346), Vector2(0.634393, -0.77301), Vector2(0.653173, -0.757209), Vector2(0.671559, -0.740951), Vector2(0.689541, -0.724247), Vector2(0.707107, -0.707107), Vector2(0.724247, -0.689541), Vector2(0.740951, -0.671559), Vector2(0.757209, -0.653173), Vector2(0.77301, -0.634393), Vector2(0.788346, -0.615232), Vector2(0.803208, -0.595699), Vector2(0.817585, -0.575808), Vector2(0.83147, -0.55557), Vector2(0.844854, -0.534998), Vector2(0.857729, -0.514103), Vector2(0.870087, -0.492898), Vector2(0.881921, -0.471397), Vector2(0.893224, -0.449611), Vector2(0.903989, -0.427555), Vector2(0.91421, -0.405241), Vector2(0.92388, -0.382683), Vector2(0.932993, -0.359895), Vector2(0.941544, -0.33689), Vector2(0.949528, -0.313682), Vector2(0.95694, -0.290285), Vector2(0.963776, -0.266713), Vector2(0.970031, -0.24298), Vector2(0.975702, -0.219101), Vector2(0.980785, -0.19509), Vector2(0.985278, -0.170962), Vector2(0.989177, -0.14673), Vector2(0.99248, -0.122411), Vector2(0.995185, -0.0980171), Vector2(0.99729, -0.0735646), Vector2(0.998795, -0.0490677), Vector2(0.999699, -0.0245412), Vector2(1, -6.12303e-17), Vector2(0.999699, 0.0245412), Vector2(0.998795, 0.0490677), Vector2(0.99729, 0.0735646), Vector2(0.995185, 0.0980171), Vector2(0.99248, 0.122411), Vector2(0.989177, 0.14673), Vector2(0.985278, 0.170962), Vector2(0.980785, 0.19509), Vector2(0.975702, 0.219101), Vector2(0.970031, 0.24298), Vector2(0.963776, 0.266713), Vector2(0.95694, 0.290285), Vector2(0.949528, 0.313682), Vector2(0.941544, 0.33689), Vector2(0.932993, 0.359895), Vector2(0.92388, 0.382683), Vector2(0.91421, 0.405241), Vector2(0.903989, 0.427555), Vector2(0.893224, 0.449611), Vector2(0.881921, 0.471397), Vector2(0.870087, 0.492898), Vector2(0.857729, 0.514103), Vector2(0.844854, 0.534998), Vector2(0.83147, 0.55557), Vector2(0.817585, 0.575808), Vector2(0.803208, 0.595699), Vector2(0.788346, 0.615232), Vector2(0.77301, 0.634393), Vector2(0.757209, 0.653173), Vector2(0.740951, 0.671559), Vector2(0.724247, 0.689541), Vector2(0.707107, 0.707107), Vector2(0.689541, 0.724247), Vector2(0.671559, 0.740951), Vector2(0.653173, 0.757209), Vector2(0.634393, 0.77301), Vector2(0.615232, 0.788346), Vector2(0.595699, 0.803208), Vector2(0.575808, 0.817585), Vector2(0.55557, 0.83147), Vector2(0.534998, 0.844854), Vector2(0.514103, 0.857729), Vector2(0.492898, 0.870087), Vector2(0.471397, 0.881921), Vector2(0.449611, 0.893224), Vector2(0.427555, 0.903989), Vector2(0.405241, 0.91421), Vector2(0.382683, 0.92388), Vector2(0.359895, 0.932993), Vector2(0.33689, 0.941544), Vector2(0.313682, 0.949528), Vector2(0.290285, 0.95694), Vector2(0.266713, 0.963776), Vector2(0.24298, 0.970031), Vector2(0.219101, 0.975702), Vector2(0.19509, 0.980785), Vector2(0.170962, 0.985278), Vector2(0.14673, 0.989177), Vector2(0.122411, 0.99248), Vector2(0.0980171, 0.995185), Vector2(0.0735646, 0.99729), Vector2(0.0490677, 0.998795), Vector2(0.0245412, 0.999699), Vector2(1.22461e-16, 1), Vector2(-0.0245412, 0.999699), Vector2(-0.0490677, 0.998795), Vector2(-0.0735646, 0.99729), Vector2(-0.0980171, 0.995185), Vector2(-0.122411, 0.99248), Vector2(-0.14673, 0.989177), Vector2(-0.170962, 0.985278), Vector2(-0.19509, 0.980785), Vector2(-0.219101, 0.975702), Vector2(-0.24298, 0.970031), Vector2(-0.266713, 0.963776), Vector2(-0.290285, 0.95694), Vector2(-0.313682, 0.949528), Vector2(-0.33689, 0.941544), Vector2(-0.359895, 0.932993), Vector2(-0.382683, 0.92388), Vector2(-0.405241, 0.91421), Vector2(-0.427555, 0.903989), Vector2(-0.449611, 0.893224), Vector2(-0.471397, 0.881921), Vector2(-0.492898, 0.870087), Vector2(-0.514103, 0.857729), Vector2(-0.534998, 0.844854), Vector2(-0.55557, 0.83147), Vector2(-0.575808, 0.817585), Vector2(-0.595699, 0.803208), Vector2(-0.615232, 0.788346), Vector2(-0.634393, 0.77301), Vector2(-0.653173, 0.757209), Vector2(-0.671559, 0.740951), Vector2(-0.689541, 0.724247), Vector2(-0.707107, 0.707107), Vector2(-0.724247, 0.689541), Vector2(-0.740951, 0.671559), Vector2(-0.757209, 0.653173), Vector2(-0.77301, 0.634393), Vector2(-0.788346, 0.615232), Vector2(-0.803208, 0.595699), Vector2(-0.817585, 0.575808), Vector2(-0.83147, 0.55557), Vector2(-0.844854, 0.534998), Vector2(-0.857729, 0.514103), Vector2(-0.870087, 0.492898), Vector2(-0.881921, 0.471397), Vector2(-0.893224, 0.449611), Vector2(-0.903989, 0.427555), Vector2(-0.91421, 0.405241), Vector2(-0.92388, 0.382683), Vector2(-0.932993, 0.359895), Vector2(-0.941544, 0.33689), Vector2(-0.949528, 0.313682), Vector2(-0.95694, 0.290285), Vector2(-0.963776, 0.266713), Vector2(-0.970031, 0.24298), Vector2(-0.975702, 0.219101), Vector2(-0.980785, 0.19509), Vector2(-0.985278, 0.170962), Vector2(-0.989177, 0.14673), Vector2(-0.99248, 0.122411), Vector2(-0.995185, 0.0980171), Vector2(-0.99729, 0.0735646), Vector2(-0.998795, 0.0490677), Vector2(-0.999699, 0.0245412), Vector2(-1, 1.83691e-16), Vector2(-0.999699, -0.0245412), Vector2(-0.998795, -0.0490677), Vector2(-0.99729, -0.0735646), Vector2(-0.995185, -0.0980171), Vector2(-0.99248, -0.122411), Vector2(-0.989177, -0.14673), Vector2(-0.985278, -0.170962), Vector2(-0.980785, -0.19509), Vector2(-0.975702, -0.219101), Vector2(-0.970031, -0.24298), Vector2(-0.963776, -0.266713), Vector2(-0.95694, -0.290285), Vector2(-0.949528, -0.313682), Vector2(-0.941544, -0.33689), Vector2(-0.932993, -0.359895), Vector2(-0.92388, -0.382683), Vector2(-0.91421, -0.405241), Vector2(-0.903989, -0.427555), Vector2(-0.893224, -0.449611), Vector2(-0.881921, -0.471397), Vector2(-0.870087, -0.492898), Vector2(-0.857729, -0.514103), Vector2(-0.844854, -0.534998), Vector2(-0.83147, -0.55557), Vector2(-0.817585, -0.575808), Vector2(-0.803208, -0.595699), Vector2(-0.788346, -0.615232), Vector2(-0.77301, -0.634393), Vector2(-0.757209, -0.653173), Vector2(-0.740951, -0.671559), Vector2(-0.724247, -0.689541), Vector2(-0.707107, -0.707107), Vector2(-0.689541, -0.724247), Vector2(-0.671559, -0.740951), Vector2(-0.653173, -0.757209), Vector2(-0.634393, -0.77301), Vector2(-0.615232, -0.788346), Vector2(-0.595699, -0.803208), Vector2(-0.575808, -0.817585), Vector2(-0.55557, -0.83147), Vector2(-0.534998, -0.844854), Vector2(-0.514103, -0.857729), Vector2(-0.492898, -0.870087), Vector2(-0.471397, -0.881921), Vector2(-0.449611, -0.893224), Vector2(-0.427555, -0.903989), Vector2(-0.405241, -0.91421), Vector2(-0.382683, -0.92388), Vector2(-0.359895, -0.932993), Vector2(-0.33689, -0.941544), Vector2(-0.313682, -0.949528), Vector2(-0.290285, -0.95694), Vector2(-0.266713, -0.963776), Vector2(-0.24298, -0.970031), Vector2(-0.219101, -0.975702), Vector2(-0.19509, -0.980785), Vector2(-0.170962, -0.985278), Vector2(-0.14673, -0.989177), Vector2(-0.122411, -0.99248), Vector2(-0.0980171, -0.995185), Vector2(-0.0735646, -0.99729), Vector2(-0.0490677, -0.998795), Vector2(-0.0245412, -0.999699)]
+
 [node name="Root" type="Node3D"]
 
 [node name="Particles" type="MeshInstance3D" parent="."]
-material_override = SubResource("ShaderMaterial_di48i")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.119, 0, 0.728)
+material_override = SubResource("ShaderMaterial_i742i")
 mesh = SubResource("PlaneMesh_c4o2n")
+script = ExtResource("1_lwe7n")
 
 [node name="Profiles" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -11)
 material_override = SubResource("ShaderMaterial_klpso")
 mesh = SubResource("PlaneMesh_c4o2n")
+
+[node name="Computed" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.167522, -0.0322618, 12.5337)
+material_override = SubResource("ShaderMaterial_di48i")
+mesh = SubResource("PlaneMesh_c4o2n")
+script = ExtResource("1_lwe7n")
