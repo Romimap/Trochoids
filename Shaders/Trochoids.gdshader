@@ -1,12 +1,11 @@
 shader_type spatial;
 
 uniform float height : hint_range(-2.0, 0.0, 0.001) = -0.05;
-uniform float wavelength : hint_range(0.1, 5.0, 0.001) = 1.0;
-uniform float wavefrequency : hint_range(0.1, 5.0, 0.001) = 0.1;
+uniform float wavelength : hint_range(0.1, 10.0, 0.001) = 1.0;
+
 uniform float direction : hint_range(0.0, 6.2831, 0.001) = 0.0;
 uniform float pointsampling : hint_range(0.1, 2.0, 0.01) = 0.5;
 uniform bool useinterpolation = true;
-
 
 float interp(vec2 a, vec2 b, float x)
 {
@@ -14,12 +13,12 @@ float interp(vec2 a, vec2 b, float x)
 }
 
 // Return offset of trochoid centered on abc
-vec2 trochoidoffset(vec3 abc, float time, float theta, float lambda, float frequency)
+vec2 trochoidoffset(vec3 abc, float time, float theta, float lambda)
 {
 	vec2 d = vec2(cos(theta), sin(theta));
 	
 	float k = 2.0 * PI / lambda;
-	float omega = 2.0 * PI * frequency;
+	float omega = sqrt(k * 9.8);
 	
 	float x = dot(abc.xz,d);
 	float b = abc.y;
@@ -31,26 +30,26 @@ vec2 trochoidoffset(vec3 abc, float time, float theta, float lambda, float frequ
 }
 
 // Return coordinates of trochoid centered on abc
-vec2 trochoid(vec3 abc, float time, float theta, float lambda, float frequency)
+vec2 trochoid(vec3 abc, float time, float theta, float lambda)
 {
-	vec2 trocho = trochoidoffset(abc, time, theta, lambda, frequency);
+	vec2 trocho = trochoidoffset(abc, time, theta, lambda);
 	
 	return trocho + vec2(abc.x * cos(theta) + abc.z * sin(theta), abc.y);
 }
 
 // Return the height of a wave at given coordinates
-float waveHeight(vec3 abc, float time, float theta, float lambda, float frequency) {
+float waveHeight(vec3 abc, float time, float theta, float lambda) {
 	vec2 d = vec2(cos(theta), sin(theta));
 	float a = dot(d, abc.xz);
 	float b = abc.y;
 	float k = 2.0 * PI / lambda;
 	float c = sqrt(9.8 / k);
 
-	return trochoid(abc, time, theta, lambda, frequency).y;
+	return trochoid(abc, time, theta, lambda).y;
 }
 
 // Return the wave height by interpolating between two point on a trochoidal trajectory
-float waveHeightInterpolation(vec3 abc, float time, float theta, float lambda, float frequency) {
+float waveHeightInterpolation(vec3 abc, float time, float theta, float lambda) {
 	vec2 d = vec2(cos(theta), sin(theta));
 	
 	float b = abc.y;
@@ -58,8 +57,8 @@ float waveHeightInterpolation(vec3 abc, float time, float theta, float lambda, f
 	
 	vec3 offset =  pointsampling * vec3(d.x,0.0,d.y);
 
-	vec2 interp1 = trochoid(abc - offset, time, theta, lambda, frequency);
-	vec2 interp2 = trochoid(abc + offset, time, theta, lambda, frequency);
+	vec2 interp1 = trochoid(abc - offset, time, theta, lambda);
+	vec2 interp2 = trochoid(abc + offset, time, theta, lambda);
 	
 	return interp(interp2, interp1, dot(d,abc.xz));
 }
@@ -68,9 +67,9 @@ void vertex() {
 	vec3 v = VERTEX;
 	v.y = height;
 	if(useinterpolation)
-		v.y += waveHeightInterpolation(v, TIME, direction, wavelength, wavefrequency);
+		v.y += waveHeightInterpolation(v, TIME, direction, wavelength);
 	else
-		v.y += waveHeight(v, TIME, direction, wavelength, wavefrequency);
+		v.y += waveHeight(v, TIME, direction, wavelength);
 	VERTEX = v;
 }
 
