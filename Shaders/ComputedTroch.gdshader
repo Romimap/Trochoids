@@ -1,18 +1,24 @@
 shader_type spatial;
 
+#include "res://Shaders/phasor.gdshaderinc"
+
 uniform float height : hint_range(-2.0, 0.0, 0.001) = -0.05;
 uniform float wavelength : hint_range(0.1, 10.0, 0.001) = 1.0;
 uniform float direction : hint_range(0.0, 6.2831, 0.001) = 0.0;
 
-uniform float elapsedtime = 0;
+// Interpolation
+// Distance entre les points interp1 et interp2 et le point qu'on souhait évaluer dans la fonction waveHeightInterpolation
+uniform float pointsampling : hint_range(0.01, 0.2, 0.01) = 0.01;
 
+// Nombre de point echantillonne pour un motif de la trochoide
+// /!\ Doit être aussi ajuste dans le script de generation du tableau (computed.gd)
 const int npoint = 1024;
+// Table du profil de la trochoide lookuptable[abscisse] = hauteur de la trochoide à l'abscisse donnee
 uniform float[npoint] lookuptable;
 
-
-float interp(vec2 a, vec2 b, float x)
+float interp(float a, float b, float t)
 {
-	return (a.x - x) / (a.x - b.x) * (b.y - a.y) + a.y;
+	return (b - a) * t + a;
 }
 
 float fmod(float a, float b)
@@ -20,42 +26,39 @@ float fmod(float a, float b)
 	return a - floor(a / b) * b;
 }
 
-// Return the point resulting in the trochoid evaluation at theta
-float getComputedTrochoidHeightFromPhase(float theta)
+// Evaluation de la trochoide
+float trochoid(float theta)
 {
 	return lookuptable[int(fmod(theta / (2.0 * PI), 1.0) * float(npoint))];
 }
 
-// Return coordinates of trochoid centered on abc
+// Hauteur de vague du point le plus proche
 float waveHeight(vec3 abc, float time, float theta, float lambda)
 {
 	float k = 2.0 * PI / lambda;
 	float omega = sqrt(k * 9.8);
 	
-	// * 2 bc to gain precision, trochoid were computed times 0.5
-	return 2.0 * exp(k * abc.y) / k * getComputedTrochoidHeightFromPhase(k*dot(abc.xz, vec2(cos(theta), sin(theta))) - omega * time);
+	return exp(k * abc.y) / k * trochoid(k*dot(abc.xz, vec2(cos(theta), sin(theta))) - omega * time);
 }
 
-// Return the wave height by interpolating between two point on a trochoidal trajectory
-//float waveHeightInterpolation(vec3 abc, float time, float theta, float lambda, float frequency) {
-//	vec2 d = vec2(cos(theta), sin(theta));
-//
-//	float b = abc.y;
-//	float k = 2.0 * PI / lambda;
-//
-//	vec3 offset =  pointsampling * vec3(d.x,0.0,d.y);
-//
-//	float interp1 = trochoidHeight(abc - offset, time, theta, lambda, frequency);
-//	float interp2 = trochoidHeight(abc + offset, time, theta, lambda, frequency);
-//
-//	return interp(interp2, interp1, dot(d,abc.xz));
-//}
+// Hauteur de vague en interpolant la position entre deux points où la hauteur de la trochoïde est connue
+float waveHeightInterpolation(vec3 abc, float time, float theta, float lambda) {
+	vec2 d = vec2(cos(theta), sin(theta));
+
+	float b = abc.y;
+	float k = 2.0 * PI / lambda;
+
+	vec3 offset =  pointsampling * vec3(d.x,0.0,d.y);
+
+	float interp1 = waveHeight(abc - offset, time, theta, lambda);
+	float interp2 = waveHeight(abc + offset, time, theta, lambda);
+
+	return interp(interp1, interp2, dot(d,abc.xz));
+}
 
 void vertex () {
 	vec3 v = VERTEX;
-	v.y = height;
-	v.y += waveHeight(v, TIME, direction, wavelength) + waveHeight(v, TIME, direction + PI / 4.0, wavelength / 2.0) + waveHeight(v, TIME, direction - PI / 2.0, wavelength / 2.0) + waveHeight(v, TIME, direction + PI / 4.0, wavelength / 2.0) + waveHeight(v, TIME, direction + 3.0 * PI / 2.0, wavelength / 1.5);
-
+	v.y += waveHeightInterpolation(v, TIME, direction, wavelength);
 	VERTEX = v;
 }
 
@@ -65,11 +68,11 @@ void fragment() {
 	uv = mod(uv, vec2(2.0)) - vec2(1.0);
 	if (sign(uv.x) == sign(uv.y)) ALBEDO = vec3(1.0);
 	else ALBEDO = vec3(0.8);
-	
+
 	uv = UV * 8.0;
 	uv = mod(uv, vec2(2.0)) - vec2(1.0);
 	if (sign(uv.x) == sign(uv.y)) ALBEDO *= vec3(0.5);
-	
+
 	uv = UV * 2.0;
 	uv = mod(uv, vec2(2.0)) - vec2(1.0);
 	if (sign(uv.x) == sign(uv.y)) ALBEDO *= vec3(0.2);

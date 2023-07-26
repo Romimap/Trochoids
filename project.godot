@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Trochoids"
-run/main_scene="res://scenes/root.tscn"
+run/main_scene="res://scenes/Test vagues trochoidales.tscn"
 config/features=PackedStringArray("4.1", "Forward Plus")
 config/icon="res://icon.svg"
 
